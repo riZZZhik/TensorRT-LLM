@@ -182,7 +182,8 @@ def launch_server(
         metadata_server_cfg: Optional[MetadataServerConfig] = None,
         server_role: Optional[ServerRole] = None,
         disagg_cluster_config: Optional[DisaggClusterConfig] = None,
-        multimodal_server_config: Optional[MultimodalServerConfig] = None):
+        multimodal_server_config: Optional[MultimodalServerConfig] = None,
+        log_level: str = "info"):
 
     backend = llm_args["backend"]
     model = llm_args["model"]
@@ -226,7 +227,7 @@ def launch_server(
         if os.getenv("TRTLLM_SERVER_DISABLE_GC", "0") == "1":
             gc.disable()
 
-        asyncio.run(server(host, port, sockets=[s]))
+        asyncio.run(server(host, port, log_level, sockets=[s]))
 
 
 def launch_mm_encoder_server(
@@ -234,6 +235,7 @@ def launch_mm_encoder_server(
     port: int,
     encoder_args: dict,
     metadata_server_cfg: Optional[MetadataServerConfig] = None,
+    log_level: str = "info",
 ):
     model = encoder_args["model"]
     encoder_args.pop("build_config")
@@ -244,7 +246,7 @@ def launch_mm_encoder_server(
                           server_role=ServerRole.MM_ENCODER,
                           metadata_server_cfg=metadata_server_cfg,
                           tool_parser=None)
-    asyncio.run(server(host, port))
+    asyncio.run(server(host, port, log_level))
 
 
 class ChoiceWithAlias(click.Choice):
@@ -567,7 +569,7 @@ def serve(
         media_io_kwargs=parsed_media_io_kwargs)
     launch_server(host, port, llm_args, tool_parser, chat_template,
                   metadata_server_cfg, server_role, disagg_cluster_config,
-                  multimodal_server_config)
+                  multimodal_server_config, log_level)
 
 
 @click.command("mm_embedding_serve")
@@ -640,7 +642,8 @@ def serve_encoder(model: str, host: str, port: int, log_level: str,
     metadata_server_cfg = parse_metadata_server_config_file(
         metadata_server_config_file)
 
-    launch_mm_encoder_server(host, port, encoder_args, metadata_server_cfg)
+    launch_mm_encoder_server(host, port, encoder_args, metadata_server_cfg,
+                             log_level)
 
 
 @click.command("disaggregated")
@@ -776,7 +779,7 @@ def disaggregated_mpi_worker(config_file: Optional[str], log_level: str):
 
         # Ignore the non-LLM args
         llm_args.pop("router", None)
-        _launch_disaggregated_server(config_file, llm_args)
+        _launch_disaggregated_server(config_file, llm_args, log_level)
         return
 
     is_leader, instance_idx, sub_comm = split_world_comm(
@@ -815,7 +818,9 @@ class DisaggLauncherEnvs(StrEnum):
     TLLM_DISAGG_RUN_REMOTE_MPI_SESSION_CLIENT = "TLLM_DISAGG_RUN_REMOTE_MPI_SESSION_CLIENT"
 
 
-def _launch_disaggregated_server(disagg_config_file: str, llm_args: dict):
+def _launch_disaggregated_server(disagg_config_file: str,
+                                 llm_args: dict,
+                                 log_level: str = "info"):
     # Launching the server
     instance_idx = os.environ.get(DisaggLauncherEnvs.TLLM_DISAGG_INSTANCE_IDX)
     assert instance_idx is not None, f"{DisaggLauncherEnvs.TLLM_DISAGG_INSTANCE_IDX} should be set by the launcher"
@@ -827,7 +832,8 @@ def _launch_disaggregated_server(disagg_config_file: str, llm_args: dict):
 
     launch_server(host=server_cfg.hostname,
                   port=server_cfg.port,
-                  llm_args=llm_args)
+                  llm_args=llm_args,
+                  log_level=log_level)
 
 
 def _launch_disaggregated_leader(sub_comm, instance_idx: int, config_file: str,

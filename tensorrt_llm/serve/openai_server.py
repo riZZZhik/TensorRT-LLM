@@ -1119,7 +1119,7 @@ class OpenAIServer:
         await self.llm.collective_rpc('update_weights', args=(request.weights,))
         return JSONResponse(content={"status": "success"})
 
-    async def __call__(self, host, port, sockets: list[socket.socket] | None = None):
+    async def __call__(self, host, port, log_level: str = "info", sockets: list[socket.socket] | None = None):
         # Store the binding address for server registration
         self.binding_addr = f"http://{host}:{port}"
         self.host = host
@@ -1127,6 +1127,6 @@ class OpenAIServer:
         config = uvicorn.Config(self.app,
                                 host=host,
                                 port=port,
-                                log_level="info",
+                                log_level=log_level,
                                 timeout_keep_alive=TIMEOUT_KEEP_ALIVE)
         await uvicorn.Server(config).serve(sockets=sockets)
